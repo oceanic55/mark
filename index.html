@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Markdownit</title>
+<link rel="stylesheet" href="styles.css?v=3">
+</head>
+<body>
+<div id="app" class="app desktop">
+
+  <!-- Left: Navigation sidebar -->
+  <aside id="sidebar" class="sidebar" aria-label="Navigation sidebar">
+    <div class="sidebar-scroll">
+      <!-- Collection selector header -->
+      <button id="collectionButton" class="collection-btn" title="Show all documents" aria-pressed="true">
+        <span class="collection-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+        </span>
+        <span class="collection-name" id="collectionName">Documents</span>
+        <span class="collection-count" id="collectionCount"></span>
+      </button>
+
+      <!-- Tag navigation -->
+      <nav class="tag-nav" id="tagNav" aria-label="Tags"></nav>
+    </div>
+
+    <div class="sidebar-footer">
+      <button id="settingsButton" class="sidebar-footer-btn" title="Settings">
+        <span class="footer-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span>Settings</span>
+      </button>
+      <button id="folderButton" class="sidebar-footer-btn" title="Choose working directory">
+        <span class="footer-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        <span class="footer-folder-label" id="workingDirName">Markdownit</span>
+      </button>
+    </div>
+  </aside>
+
+  <div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
+
+  <!-- Middle: Note list -->
+  <section id="noteList" class="note-list" aria-label="Notes">
+    <div class="note-list-header">
+      <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="Menu" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <span class="note-list-title-wrap">
+        <span class="note-list-title" id="listTitle">All Notes</span>
+        <span class="note-list-chevron">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </span>
+      </span>
+      <button id="newFromListBtn" class="icon-btn" title="New note" aria-label="New note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <div class="note-list-body" id="noteListBody"></div>
+
+    <!-- FAB (mobile) -->
+    <button id="fabBtn" class="fab" title="New note" aria-label="New note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    </button>
+  </section>
+
+  <!-- Right: Editor area -->
+  <main id="editorPane" class="editor-pane" aria-label="Editor">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button id="backBtn" class="icon-btn back-btn" title="Back to notes" aria-label="Back to notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="file-label" id="fileLabel" title="">
+        <span id="unsavedDot" class="unsaved-dot" hidden></span>
+        <span class="file-name" id="fileNameText"></span>
+      </span>
+      <div class="toolbar-actions">
+        <button id="newBtn" class="toolbar-btn">New</button>
+        <button id="searchBtn" class="toolbar-btn">Search</button>
+        <button id="tagBtn" class="toolbar-btn" disabled>Tag</button>
+        <button id="previewBtn" class="toolbar-btn" disabled>Preview</button>
+        <button id="mobileMenuBtn2" class="icon-btn mobile-menu-btn" title="Menu" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Editor / Preview content -->
+    <div class="editor-area">
+      <div class="editor-scroll" id="editorScroll">
+        <pre id="highlightLayer" class="highlight-layer" aria-hidden="true"></pre>
+        <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" autocapitalize="off"
+                  autocomplete="off" autocorrect="off" wrap="soft" placeholder="Start writing…"
+                  aria-label="Markdown editor"></textarea>
+      </div>
+      <div id="previewPane" class="preview-pane" role="region" aria-label="Markdown preview" hidden></div>
+    </div>
+
+    <!-- Bottom panel: LLM interaction -->
+    <div class="llm-panel">
+      <div id="llmAnswerArea" class="llm-answer" aria-live="polite" hidden>
+        <div id="llmAnswerText" class="llm-answer-text"></div>
+      </div>
+      <div id="statusBar" class="status-bar" aria-live="assertive" hidden>
+        <span class="status-message" id="statusMessage"></span>
+        <button id="clearStatusBtn" class="icon-btn status-clear" title="Dismiss" aria-label="Dismiss">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="llm-input-row">
+        <textarea id="llmQuestion" class="llm-question" rows="1" placeholder="Ask about your document…"
+                  enterkeyhint="send" aria-label="Ask about your document"></textarea>
+        <button id="copyAnswerBtn" class="icon-btn" title="Copy LLM answer" aria-label="Copy LLM answer" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Context menu -->
+<div id="contextMenu" class="context-menu" hidden>
+  <button id="ctxDelete" class="context-item danger">Delete</button>
+  <button id="ctxDownload" class="context-item">Download .md</button>
+</div>
+
+<!-- Search Sheet -->
+<div id="searchModal" class="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Search Documents">
+    <h2 class="modal-title">Search Documents</h2>
+    <p class="modal-subtitle">Search all document contents</p>
+    <input id="searchInput" type="text" class="modal-input" placeholder="e.g. water" autocomplete="off">
+    <div class="modal-actions">
+      <button id="searchCancelBtn" class="btn">Cancel</button>
+      <button id="searchConfirmBtn" class="btn primary" disabled>Search</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tag Editor Sheet -->
+<div id="tagModal" class="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Edit Tags">
+    <h2 id="tagModalTitle" class="modal-title">Add Tags</h2>
+    <p class="modal-subtitle">Enter tags separated by commas</p>
+    <input id="tagInput" type="text" class="modal-input" placeholder="e.g. Build Commands, today, project" autocomplete="off">
+    <div class="tag-chips" id="tagChips"></div>
+    <div class="modal-actions">
+      <button id="tagCancelBtn" class="btn">Cancel</button>
+      <button id="tagSaveBtn" class="btn primary">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settingsModal" class="modal-overlay" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Settings">
+    <h2 class="modal-title">Settings</h2>
+
+    <div class="settings-section">
+      <h3 class="settings-header">Storage</h3>
+      <div class="settings-row">
+        <div class="settings-field">
+          <span class="settings-label">Working Directory</span>
+          <span class="settings-value mono" id="workingDirPath">Markdownit</span>
+        </div>
+        <button id="chooseDirBtn" class="btn">Choose&#8230;</button>
+        <button id="resetDirBtn" class="btn" title="Reset to default" aria-label="Reset to default">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="settings-header">API Keys</h3>
+      <div class="api-keys" id="apiKeyList"></div>
+      <div class="settings-row" style="margin-top:8px">
+        <button id="testKeyBtn" class="btn">Test</button>
+        <span id="testKeyResult" class="test-result" aria-live="polite"></span>
+        <div class="spacer"></div>
+        <button id="addKeyBtn" class="btn">API</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="settings-header">LLM Model</h3>
+      <div id="modelArea" class="settings-row">
+        <select id="modelSelect" class="modal-input" aria-label="Select model"></select>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="settings-header">Preview Shortcut</h3>
+      <div class="settings-row">
+        <span class="settings-value mono" id="shortcutDisplay">Option+Space</span>
+        <div class="spacer"></div>
+        <button id="recordShortcutBtn" class="btn">Record</button>
+        <button id="resetShortcutBtn" class="btn">Reset</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="settingsDoneBtn" class="btn primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div id="confirmModal" class="modal-overlay" hidden>
+  <div class="modal-card small" role="alertdialog" aria-modal="true" aria-label="Confirm" aria-describedby="confirmMessage">
+    <h2 class="modal-title">Confirm</h2>
+    <p class="modal-subtitle" id="confirmMessage"></p>
+    <div class="modal-actions">
+      <button id="confirmCancelBtn" class="btn">Cancel</button>
+      <button id="confirmOkBtn" class="btn danger">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add API Key -->
+<div id="addKeyModal" class="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Add API Key">
+    <h2 class="modal-title">Add API Key</h2>
+    <p class="modal-subtitle">Paste your API key</p>
+    <input id="newKeyInput" type="password" class="modal-input" placeholder="Paste your API key" autocomplete="off">
+    <div class="modal-actions">
+      <button id="newKeyCancelBtn" class="btn">Cancel</button>
+      <button id="newKeyAddBtn" class="btn primary" disabled>Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Folder / file import (fallback modes) -->
+<input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+<input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" multiple hidden>
+
+<script src="app.js?v=5"></script>
+</body>
+</html>
