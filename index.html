@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Markdownit</title>
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div id="app" class="app desktop">
@@ -85,6 +85,7 @@
       </span>
       <div class="toolbar-actions">
         <button id="newBtn" class="toolbar-btn">New</button>
+        <button id="saveBtn" class="toolbar-btn">Save</button>
         <button id="searchBtn" class="toolbar-btn">Search</button>
         <button id="tagBtn" class="toolbar-btn" disabled>Tag</button>
         <button id="previewBtn" class="toolbar-btn" disabled>Preview</button>
@@ -117,7 +118,7 @@
         </button>
       </div>
       <div class="llm-input-row">
-        <textarea id="llmQuestion" class="llm-question" rows="1" placeholder="Ask about your document…"
+        <textarea id="llmQuestion" class="llm-question" rows="3" placeholder="Ask about your document…"
                   enterkeyhint="send" aria-label="Ask about your document"></textarea>
         <button id="copyAnswerBtn" class="icon-btn" title="Copy LLM answer" aria-label="Copy LLM answer" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -242,6 +243,6 @@
 <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
 <input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" multiple hidden>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

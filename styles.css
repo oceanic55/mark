@@ -526,7 +526,8 @@ svg { display: block; }
   background: var(--control-bg);
 }
 .llm-answer {
-  max-height: 180px;
+  max-height: min(38vh, 260px);
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 8px 12px;
@@ -589,8 +590,10 @@ svg { display: block; }
   font-size: 16px;
   line-height: 1.4;
   color: var(--text-primary);
-  max-height: 64px;
+  min-height: 67px;
+  max-height: 134px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .llm-question::placeholder { color: var(--text-secondary); opacity: 0.7; }
 

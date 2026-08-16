@@ -74,7 +74,7 @@ function cacheEls() {
     'app','sidebar','sidebarOverlay','collectionButton','collectionName','collectionCount',
     'tagNav','settingsButton','folderButton','workingDirName','noteList','mobileMenuBtn',
     'listTitle','newFromListBtn','noteListBody','fabBtn','editorPane','backBtn','fileLabel',
-    'unsavedDot','fileNameText','newBtn','searchBtn','tagBtn','previewBtn','mobileMenuBtn2',
+    'unsavedDot','fileNameText','newBtn','saveBtn','searchBtn','tagBtn','previewBtn','mobileMenuBtn2',
     'editorScroll','markdownEditor','highlightLayer','previewPane','llmAnswerArea','llmAnswerText',
     'statusBar','statusMessage','clearStatusBtn','llmQuestion','copyAnswerBtn','contextMenu',
     'ctxDelete','ctxDownload','searchModal','searchInput','searchCancelBtn','searchConfirmBtn',
@@ -233,33 +233,6 @@ const FileManager = {
     const firstWord = title.split(/\s+/).find(w => w.length);
     if (!firstWord) return false;
     return firstWord.replace(/[^a-zA-Z0-9_-]/g, '').length > 0;
-  },
-
-  generateFileName(content, currentFileName) {
-    const title = this.extractTitleAndPreview(content, 'document').title;
-    const firstWord = title.split(/\s+/).find(w => w.length) || 'document';
-    const cleanedWord = firstWord.replace(/[^a-zA-Z0-9_-]/g, '');
-    let baseName = cleanedWord.slice(0, 30);
-    if (!baseName) baseName = 'document';
-
-    const existingFiles = new Set(state.availableFiles);
-
-    if (currentFileName) {
-      const currentBaseName = currentFileName.replace(/\.md$/i, '');
-      const suffix = currentBaseName.startsWith(baseName) ? currentBaseName.slice(baseName.length) : '';
-      if (currentBaseName === baseName ||
-          (suffix.length && /^\d+$/.test(suffix) && parseInt(suffix, 10) >= 2)) {
-        return currentFileName;
-      }
-    }
-
-    let number = 1;
-    for (;;) {
-      const suffix = number === 1 ? '' : String(number).padStart(2, '0');
-      const candidate = `${baseName}${suffix}.md`;
-      if (candidate === currentFileName || !existingFiles.has(candidate)) return candidate;
-      number += 1;
-    }
   },
 };
 
@@ -533,6 +506,30 @@ async function listMarkdownFiles() {
   return recs.map(r => r.name).filter(n => n.toLowerCase().endsWith('.md')).sort();
 }
 
+async function getCurrentFileNames() {
+  return await listMarkdownFiles();
+}
+
+function titleToBaseName(content) {
+  const title = FileManager.extractTitleAndPreview(content, 'document').title;
+  const firstWord = title.split(/\s+/).find(w => w.length) || 'document';
+  const cleanedWord = firstWord.replace(/[^a-zA-Z0-9_-]/g, '');
+  let baseName = cleanedWord.slice(0, 30);
+  if (!baseName) baseName = 'document';
+  return baseName;
+}
+
+function allocateUniqueFileName(baseName, existingNames) {
+  const existing = new Set(existingNames);
+  if (!existing.has(`${baseName}.md`)) return `${baseName}.md`;
+  let n = 1;
+  for (;;) {
+    const candidate = `${baseName}x${String(n).padStart(2, '0')}.md`;
+    if (!existing.has(candidate)) return candidate;
+    n += 1;
+  }
+}
+
 async function loadMarkdown(name) {
   if (hasDir()) {
     const fh = await state.dirHandle.getFileHandle(name);
@@ -567,21 +564,6 @@ async function removeMarkdown(name) {
     return;
   }
   await idbDeleteFile(name);
-}
-
-async function renameMarkdown(oldName, newName) {
-  if (hasDir()) {
-    const content = await loadMarkdown(oldName);
-    await saveMarkdown(newName, content);
-    await removeMarkdown(oldName);
-    return;
-  }
-  const recs = await idbGetAllFiles();
-  const rec = recs.find(r => r.name === oldName);
-  if (rec) {
-    await idbDeleteFile(oldName);
-    await idbPutFile({ name: newName, content: rec.content, mtime: rec.mtime });
-  }
 }
 
 async function modificationDate(name) {
@@ -691,15 +673,14 @@ async function resetWorkingDirectory() {
 async function importFiles(fileList) {
   const mdFiles = [...fileList].filter(f => /\.md$/i.test(f.name));
   if (!mdFiles.length) return;
+  const existing = await getCurrentFileNames();
   for (const f of mdFiles) {
+    const baseName = f.name.replace(/\.md$/i, '');
     let name = f.name;
-    const existing = state.availableFiles;
-    let base = name.replace(/\.md$/i, '');
     if (existing.includes(name)) {
-      let n = 2;
-      while (existing.includes(`${base}${String(n).padStart(2, '0')}.md`)) n += 1;
-      name = `${base}${String(n).padStart(2, '0')}.md`;
+      name = allocateUniqueFileName(baseName, existing);
     }
+    existing.push(name);
     const content = await f.text();
     await saveMarkdown(name, content);
   }
@@ -925,6 +906,53 @@ function updateFilteredFiles(sel, searchText) {
   state.filteredFiles = files;
 }
 
+async function handleManualSave() {
+  if (state.currentFileName && state.hasUnsavedChanges) {
+    const target = state.currentFileName;
+    const confirmed = await confirmDialog(
+      `Save changes to "${target}"? This will overwrite the existing file.`,
+      'Save'
+    );
+    if (!confirmed) {
+      showStatus('Save cancelled', true);
+      return;
+    }
+  }
+  if (hasDir()) {
+    if (await savePendingChanges()) {
+      reconcileLibraryState();
+      renderAll();
+      showStatus(`Saved to ${state.workingDirName}`);
+    }
+    return;
+  }
+  if (state.mode === 'fsa') {
+    showStatus('Choose a folder to save into…');
+    const ok = await pickDirectory();
+    if (!ok) {
+      showStatus('Save cancelled — no folder selected', true);
+      return;
+    }
+    if (await savePendingChanges()) {
+      reconcileLibraryState();
+      renderAll();
+      showStatus(`Saved to ${state.workingDirName}`);
+    }
+    return;
+  }
+  const ok = await savePendingChanges();
+  if (ok) {
+    reconcileLibraryState();
+    renderAll();
+    if (state.currentFileName) {
+      downloadFile(state.currentFileName);
+      showStatus(`Downloaded ${state.currentFileName} — this browser can't write to a folder`);
+    } else {
+      showStatus('Saved to the in-app library');
+    }
+  }
+}
+
 async function savePendingChanges() {
   if (!state.hasUnsavedChanges) return true;
   if (!state.currentFileName && state.rawMarkdown && !FileManager.hasUsableTitle(state.rawMarkdown)) {
@@ -940,23 +968,37 @@ async function savePendingChanges() {
   }
 }
 
+async function saveNewMarkdown(content) {
+  const baseName = titleToBaseName(content);
+  if (hasDir()) {
+    for (;;) {
+      const existing = await getCurrentFileNames();
+      const name = allocateUniqueFileName(baseName, existing);
+      let exists = true;
+      try {
+        await state.dirHandle.getFileHandle(name);
+      } catch (e) {
+        exists = false;
+      }
+      if (!exists) {
+        await saveMarkdown(name, content);
+        return name;
+      }
+    }
+  }
+  const existing = await getCurrentFileNames();
+  const name = allocateUniqueFileName(baseName, existing);
+  await saveMarkdown(name, content);
+  return name;
+}
+
 async function persistCurrentDocument() {
   if (!state.rawMarkdown && !state.currentFileName) return;
 
   if (!state.currentFileName) {
-    const newName = FileManager.generateFileName(state.rawMarkdown);
-    await saveMarkdown(newName, state.rawMarkdown);
+    const newName = await saveNewMarkdown(state.rawMarkdown);
     state.currentFileName = newName;
     state.isNewDocumentDraft = false;
-  } else if (state.rawMarkdown.trim()) {
-    const newName = FileManager.generateFileName(state.rawMarkdown, state.currentFileName);
-    if (newName !== state.currentFileName) {
-      await saveMarkdown(state.currentFileName, state.rawMarkdown);
-      await renameMarkdown(state.currentFileName, newName);
-      state.currentFileName = newName;
-    } else {
-      await saveMarkdown(state.currentFileName, state.rawMarkdown);
-    }
   } else {
     await saveMarkdown(state.currentFileName, state.rawMarkdown);
   }
@@ -1695,9 +1737,6 @@ function scheduleRenameCheck() {
 async function checkRenameAndTags() {
   const previousTags = state.summaries[state.currentFileName]?.tags || [];
   const currentTags = TagParser.tags(state.rawMarkdown);
-  const titleRequiresRename = !!state.currentFileName &&
-    FileManager.hasUsableTitle(state.rawMarkdown) &&
-    FileManager.generateFileName(state.rawMarkdown, state.currentFileName) !== state.currentFileName;
   const completedTagsChanged = JSON.stringify(previousTags) !== JSON.stringify(currentTags) && currentTags.length > 0;
   // Persist new documents (no currentFileName yet) as soon as they have a
   // usable title, so they appear in the working directory without waiting
@@ -1705,7 +1744,7 @@ async function checkRenameAndTags() {
   const isNewDocToSave = !state.currentFileName &&
     state.hasUnsavedChanges &&
     FileManager.hasUsableTitle(state.rawMarkdown);
-  if (titleRequiresRename || completedTagsChanged || isNewDocToSave) {
+  if (completedTagsChanged || isNewDocToSave) {
     if (await savePendingChanges()) reconcileLibraryState(completedTagsChanged);
     renderAll();
   }
@@ -1781,6 +1820,7 @@ function bindEvents() {
 
   // Editor toolbar
   els.newBtn.addEventListener('click', createNewDocument);
+  els.saveBtn.addEventListener('click', handleManualSave);
   els.searchBtn.addEventListener('click', () => {
     els.searchInput.value = state.searchText;
     els.searchConfirmBtn.disabled = !els.searchInput.value.trim();
@@ -1968,7 +2008,7 @@ function openTagEditor() {
 
 function autoGrow(textarea) {
   textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 64) + 'px';
+  textarea.style.height = Math.min(textarea.scrollHeight, 134) + 'px';
 }
 
 function downloadFile(name) {
