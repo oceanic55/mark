@@ -40,7 +40,6 @@ const state = {
 
   apiKeys: [],
   selectedModel: 'llama-3.3-70b-versatile',
-  previewShortcut: { alt: true, ctrl: false, meta: false, shift: false, code: 'Space', display: 'Option+Space' },
 
   undoStack: [],
   redoStack: [],
@@ -56,7 +55,6 @@ const LS = {
   apiKeys: 'markdownit.apiKeys',
   groqApiKey: 'markdownit.groqApiKey',
   selectedModel: 'markdownit.selectedModel',
-  previewShortcut: 'markdownit.previewShortcut',
 };
 
 const IDB_NAME = 'markdownit';
@@ -73,15 +71,15 @@ function cacheEls() {
   [
     'app','sidebar','sidebarOverlay','collectionButton','collectionName','collectionCount',
     'tagNav','settingsButton','folderButton','workingDirName','noteList','mobileMenuBtn',
-    'listTitle','newFromListBtn','noteListBody','fabBtn','editorPane','backBtn','fileLabel',
-    'unsavedDot','fileNameText','newBtn','saveBtn','searchBtn','tagBtn','previewBtn','mobileMenuBtn2',
+    'listTitle','delListBtn','headerSearchBtn','noteListBody','fabBtn','editorPane','backBtn',
+    'newBtn','saveBtn','searchBtn','tagBtn','previewBtn',
     'editorScroll','markdownEditor','highlightLayer','previewPane','llmAnswerArea','llmAnswerText',
-    'statusBar','statusMessage','clearStatusBtn','llmQuestion','copyAnswerBtn','contextMenu',
-    'ctxDelete','ctxDownload','searchModal','searchInput','searchCancelBtn','searchConfirmBtn',
+    'statusBar','statusMessage','clearStatusBtn','llmQuestion','clearAnswerBtn','copyAnswerBtn',
+    'searchModal','searchInput','searchCancelBtn','searchConfirmBtn',
     'tagModal','tagModalTitle','tagInput','tagChips','tagCancelBtn','tagSaveBtn','settingsModal',
-    'workingDirPath','chooseDirBtn','resetDirBtn','apiKeyList','testKeyBtn','testKeyResult',
-    'addKeyBtn','modelSelect','shortcutDisplay','recordShortcutBtn','resetShortcutBtn',
-    'settingsDoneBtn','addKeyModal','newKeyInput','newKeyCancelBtn','newKeyAddBtn',
+    'workingDirPath','chooseDirBtn','resetDirBtn','apiKeyList',
+    'modelArea','modelMenuBtn','modelMenuLabel','modelMenuList',
+    'settingsDoneBtn',
     'confirmModal','confirmMessage','confirmOkBtn','confirmCancelBtn',
     'folderInput','fileInput'
   ].forEach(id => els[id] = $(id));
@@ -826,10 +824,6 @@ function loadSettings() {
     state.apiKeys = [{ id: crypto.randomUUID(), name: 'LLM API Key', key: legacy, isActive: true }];
   }
   state.selectedModel = localStorage.getItem(LS.selectedModel) || state.selectedModel;
-  try {
-    const sc = JSON.parse(localStorage.getItem(LS.previewShortcut));
-    if (sc && sc.code) state.previewShortcut = sc;
-  } catch (e) { /* keep default */ }
   state.workingDirName = localStorage.getItem(LS.workingDirName) || state.workingDirName;
 }
 
@@ -908,9 +902,12 @@ function updateFilteredFiles(sel, searchText) {
 
 async function handleManualSave() {
   if (state.currentFileName && state.hasUnsavedChanges) {
-    const target = state.currentFileName;
+    const target = await computeSaveTarget(state.rawMarkdown, state.currentFileName) || state.currentFileName;
+    const renamed = target !== state.currentFileName;
     const confirmed = await confirmDialog(
-      `Save changes to "${target}"? This will overwrite the existing file.`,
+      renamed
+        ? `Save changes? The document will be renamed from "${state.currentFileName}" to "${target}".`
+        : `Save changes to "${target}"? This will overwrite the existing file.`,
       'Save'
     );
     if (!confirmed) {
@@ -946,7 +943,7 @@ async function handleManualSave() {
     renderAll();
     if (state.currentFileName) {
       downloadFile(state.currentFileName);
-      showStatus(`Downloaded ${state.currentFileName} — this browser can't write to a folder`);
+      showStatus('Saved');
     } else {
       showStatus('Saved to the in-app library');
     }
@@ -992,6 +989,16 @@ async function saveNewMarkdown(content) {
   return name;
 }
 
+async function computeSaveTarget(content, currentName) {
+  const baseName = titleToBaseName(content);
+  if (!currentName) return null;
+  if (!FileManager.hasUsableTitle(content)) return currentName;
+  const currentBase = currentName.replace(/\.md$/i, '');
+  if (baseName === currentBase) return currentName;
+  const existing = await getCurrentFileNames();
+  return allocateUniqueFileName(baseName, existing);
+}
+
 async function persistCurrentDocument() {
   if (!state.rawMarkdown && !state.currentFileName) return;
 
@@ -1000,7 +1007,14 @@ async function persistCurrentDocument() {
     state.currentFileName = newName;
     state.isNewDocumentDraft = false;
   } else {
-    await saveMarkdown(state.currentFileName, state.rawMarkdown);
+    const target = await computeSaveTarget(state.rawMarkdown, state.currentFileName);
+    if (target && target !== state.currentFileName) {
+      await saveMarkdown(target, state.rawMarkdown);
+      await removeMarkdown(state.currentFileName);
+      state.currentFileName = target;
+    } else {
+      await saveMarkdown(state.currentFileName, state.rawMarkdown);
+    }
   }
 
   state.hasUnsavedChanges = false;
@@ -1051,7 +1065,7 @@ async function loadDocument(name) {
     state.currentFileName = name;
     state.rawMarkdown = content;
     state.hasUnsavedChanges = false;
-    state.isPreviewMode = false;
+    state.isPreviewMode = true;
     state.llmAnswer = '';
     state.llmQuestion = '';
     state.isLoading = false;
@@ -1096,6 +1110,7 @@ async function deleteDocument(name) {
     await loadAvailableFiles();
     reconcileLibraryState(true);
     showStatus(`Deleted: ${name}`, false);
+    renderAll();
   } catch (e) {
     showStatus(`Delete failed: ${e.message}`, true);
   }
@@ -1114,6 +1129,10 @@ function reconcileLibraryState(normalizeSelection = false) {
 
 function reconcileCurrentDocument() {
   if (state.isNewDocumentDraft) return;
+  // On mobile, don't auto-open a document on page refresh - stay in list view
+  if (state.viewport === 'mobile' && !state.currentFileName) {
+    return;
+  }
   if (state.currentFileName && state.filteredFiles.includes(state.currentFileName)) return;
   const first = state.filteredFiles[0];
   if (first) loadDocument(first);
@@ -1275,26 +1294,33 @@ async function askLLM() {
   renderLLMPanel();
 }
 
-async function testConnection() {
-  const apiKey = getActiveApiKey();
-  const resultEl = els.testKeyResult;
-  resultEl.textContent = '';
-  resultEl.className = 'test-result';
-  if (!apiKey) {
+async function testConnection(apiKey, resultEl) {
+  const key = (typeof apiKey === 'string' ? apiKey : '') || getActiveApiKey();
+  if (resultEl) {
+    resultEl.textContent = '';
+    resultEl.className = 'test-result';
+  }
+  if (!key) {
     showStatus('Set your API key', true);
-    resultEl.textContent = 'No key';
-    resultEl.className = 'test-result error';
+    if (resultEl) {
+      resultEl.textContent = 'No key';
+      resultEl.className = 'test-result error';
+    }
     return;
   }
-  const result = await LLM.testConnection(apiKey);
+  const result = await LLM.testConnection(key);
   if (result.ok) {
     showStatus(result.message, false);
-    resultEl.textContent = 'Valid';
-    resultEl.className = 'test-result ok';
+    if (resultEl) {
+      resultEl.textContent = 'Valid';
+      resultEl.className = 'test-result ok';
+    }
   } else {
     showStatus(`Connection failed: ${result.message}`, true);
-    resultEl.textContent = 'Invalid';
-    resultEl.className = 'test-result error';
+    if (resultEl) {
+      resultEl.textContent = 'Invalid';
+      resultEl.className = 'test-result error';
+    }
   }
 }
 
@@ -1386,32 +1412,10 @@ function renderSidebar() {
 
 function renderNoteList() {
   els.listTitle.textContent = headerTitle();
+  els.delListBtn.hidden = true;
 
   if (!state.filteredFiles.length) {
-    const empty = document.createElement('div');
-    empty.className = 'empty-state';
-    const icon = svgIcon(ICONS.doc, { size: '36px' });
-    empty.appendChild(icon);
-    const title = document.createElement('div');
-    title.className = 'empty-state-title';
-    title.textContent = state.searchActive ? 'No results' : 'No notes';
-    empty.appendChild(title);
-    if (!state.searchActive) {
-      const sub = document.createElement('div');
-      sub.className = 'empty-state-sub';
-      sub.textContent = 'Create a new note to get started';
-      empty.appendChild(sub);
-      const btn = document.createElement('button');
-      btn.className = 'btn';
-      btn.textContent = state.availableFiles.length ? 'New Note' : 'Choose Folder';
-      btn.addEventListener('click', () => {
-        if (state.availableFiles.length) createNewDocument();
-        else pickDirectory();
-      });
-      empty.appendChild(btn);
-    }
     els.noteListBody.innerHTML = '';
-    els.noteListBody.appendChild(empty);
     return;
   }
 
@@ -1439,23 +1443,122 @@ function renderNoteList() {
     date.textContent = formatDate(state.summaries[name]?.mtime);
     row.appendChild(date);
 
-    row.addEventListener('click', () => openDocument(name));
-    row.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      showContextMenu(e.clientX, e.clientY, name);
+    const swipe = document.createElement('div');
+    swipe.className = 'note-swipe';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'note-swipe-delete';
+    delBtn.type = 'button';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteDocument(name);
     });
-    fragment.appendChild(row);
+
+    row.addEventListener('click', () => {
+      if (swipe.classList.contains('swiped') || row._swipeMoved) {
+        row._swipeMoved = false;
+        return;
+      }
+      openDocument(name);
+    });
+
+    swipe.appendChild(delBtn);
+    swipe.appendChild(row);
+    attachSwipe(swipe, row);
+    fragment.appendChild(swipe);
   }
   els.noteListBody.appendChild(fragment);
 }
 
+let swipeOpenEl = null;
+const SWIPE_WIDTH = 100; // Increased to match button reveal distance
+
+function closeOpenSwipe() {
+  if (!swipeOpenEl) return;
+  swipeOpenEl.classList.remove('swiped');
+  const openRow = swipeOpenEl.querySelector('.note-row');
+  if (openRow) openRow.style.transform = '';
+  swipeOpenEl = null;
+}
+
+function attachSwipe(swipe, row) {
+  let startX = 0;
+  let startY = 0;
+  let dx = 0;
+  let tracking = false;
+  let axis = null;
+  let pointerId = null;
+
+  const setOpen = (open) => {
+    row.style.transition = '';
+    row.style.transform = '';
+    if (open) {
+      if (swipeOpenEl && swipeOpenEl !== swipe) closeOpenSwipe();
+      swipe.classList.add('swiped');
+      swipeOpenEl = swipe;
+    } else {
+      swipe.classList.remove('swiped');
+      if (swipeOpenEl === swipe) swipeOpenEl = null;
+    }
+  };
+
+  row.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (swipeOpenEl && swipeOpenEl !== swipe) closeOpenSwipe();
+    startX = e.clientX;
+    startY = e.clientY;
+    dx = 0;
+    tracking = true;
+    axis = null;
+    pointerId = e.pointerId;
+    row.style.transition = 'none';
+    try { row.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  });
+
+  row.addEventListener('pointermove', (e) => {
+    if (!tracking || e.pointerId !== pointerId) return;
+    dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (!axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (axis !== 'x') return;
+    e.preventDefault();
+    const base = swipe.classList.contains('swiped') ? -SWIPE_WIDTH : 0;
+    const x = Math.max(-SWIPE_WIDTH, Math.min(0, base + dx));
+    row.style.transform = `translateX(${x}px)`;
+  }, { passive: false });
+
+  const finish = (e) => {
+    if (!tracking || (e && e.pointerId !== pointerId)) return;
+    tracking = false;
+    pointerId = null;
+    if (axis !== 'x') {
+      row.style.transition = '';
+      return;
+    }
+    const base = swipe.classList.contains('swiped') ? -SWIPE_WIDTH : 0;
+    setOpen((base + dx) < -SWIPE_WIDTH / 2);
+    row._swipeMoved = Math.abs(dx) > 8;
+    
+    // Add small delay to prevent immediate close
+    setTimeout(() => {
+      row._swipeMoved = false;
+    }, 100);
+  };
+
+  row.addEventListener('pointerup', finish);
+  row.addEventListener('pointercancel', finish);
+}
+
 function renderEditor() {
-  els.fileNameText.textContent = state.currentFileName || 'Untitled';
-  els.fileLabel.title = state.currentFileName;
-  els.unsavedDot.hidden = !state.hasUnsavedChanges;
   els.tagBtn.disabled = !state.rawMarkdown;
   els.previewBtn.disabled = !state.rawMarkdown;
-  els.previewBtn.textContent = state.isPreviewMode ? 'Edit' : 'Preview';
+  els.previewBtn.classList.toggle('icon-preview', !state.isPreviewMode);
+  els.previewBtn.classList.toggle('icon-edit', state.isPreviewMode);
+  els.newBtn.hidden = false;
+  els.searchBtn.hidden = false;
 
   if (state.isPreviewMode) {
     els.previewPane.hidden = false;
@@ -1472,7 +1575,14 @@ function renderEditor() {
 }
 
 function renderPreview() {
-  els.previewPane.innerHTML = renderMarkdown(state.rawMarkdown);
+  const tags = TagParser.tags(state.rawMarkdown);
+  let pills = '';
+  if (tags.length) {
+    pills = '<div class="preview-tags">' +
+      tags.map(t => `<span class="preview-tag-pill">${escapeHtml(t)}</span>`).join('') +
+      '</div>';
+  }
+  els.previewPane.innerHTML = renderMarkdown(state.rawMarkdown) + pills;
 }
 
 function renderStatus() {
@@ -1497,6 +1607,7 @@ function renderLLMPanel() {
     els.llmAnswerText.textContent = state.llmAnswer;
   }
   els.copyAnswerBtn.hidden = !state.llmAnswer;
+  els.clearAnswerBtn.hidden = !state.llmAnswer && !state.llmQuestion;
   if (els.llmQuestion.value !== state.llmQuestion) {
     els.llmQuestion.value = state.llmQuestion;
   }
@@ -1506,48 +1617,53 @@ function renderLLMPanel() {
 function renderModals() {
   renderApiKeyList();
   renderModelSelect();
-  els.shortcutDisplay.textContent = state.previewShortcut.display;
   els.workingDirPath.textContent = state.workingDirName;
 }
 
 function renderApiKeyList() {
   els.apiKeyList.innerHTML = '';
-  if (!state.apiKeys.length) {
-    const none = document.createElement('div');
-    none.className = 'settings-value';
-    none.textContent = 'No API keys configured';
-    els.apiKeyList.appendChild(none);
-    return;
-  }
-  for (const key of state.apiKeys) {
+  const keys = state.apiKeys.length ? state.apiKeys : [{ id: null, key: '', isActive: true }];
+  for (const key of keys) {
     const row = document.createElement('div');
     row.className = 'api-key-item';
 
-    const activeBtn = document.createElement('button');
-    activeBtn.className = 'api-key-active' + (key.isActive ? ' on' : '');
-    activeBtn.title = key.isActive ? 'Active key' : 'Set as active';
-    activeBtn.setAttribute('aria-label', key.isActive ? 'Active key' : 'Set as active');
-    if (key.isActive) activeBtn.appendChild(svgIcon(ICONS.checkmark));
-    activeBtn.addEventListener('click', () => {
-      if (key.isActive) return;
-      state.apiKeys.forEach(k => { k.isActive = k.id === key.id; });
-      persistApiKeys();
-      renderModals();
+    const field = document.createElement('input');
+    field.className = 'modal-input api-key-input';
+    field.type = 'password';
+    field.autocomplete = 'off';
+    field.spellcheck = false;
+    field.placeholder = 'Paste your API key';
+    field.value = key.key || '';
+    field.setAttribute('aria-label', 'API key');
+    field.addEventListener('focus', () => {
+      field.type = 'text';
+      field.select();
     });
-    row.appendChild(activeBtn);
+    field.addEventListener('blur', () => {
+      field.type = 'password';
+      commitApiKeyField(key, field.value);
+    });
+    field.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        field.blur();
+      }
+    });
+    row.appendChild(field);
 
-    const masked = document.createElement('span');
-    masked.className = 'api-key-key';
-    masked.textContent = maskedDisplay(key.key);
-    row.appendChild(masked);
-
-    const del = document.createElement('button');
-    del.className = 'icon-btn api-key-delete';
-    del.title = 'Delete API key';
-    del.setAttribute('aria-label', 'Delete API key');
-    del.appendChild(svgIcon(ICONS.trash));
-    del.addEventListener('click', () => deleteApiKey(key.id));
-    row.appendChild(del);
+    const test = document.createElement('button');
+    test.type = 'button';
+    test.className = 'btn';
+    test.textContent = 'Test';
+    const result = document.createElement('span');
+    result.className = 'test-result';
+    result.setAttribute('aria-live', 'polite');
+    test.addEventListener('click', () => {
+      const value = field.value.trim() || key.key;
+      testConnection(value, result);
+    });
+    row.appendChild(test);
+    row.appendChild(result);
 
     els.apiKeyList.appendChild(row);
   }
@@ -1557,6 +1673,17 @@ function maskedDisplay(key) {
   if (!key) return '';
   if (key.length <= 4) return '•'.repeat(key.length);
   return '••••••••…' + key.slice(-4);
+}
+
+function commitApiKeyField(keyObj, value) {
+  const v = (value || '').trim();
+  if (keyObj && keyObj.id) {
+    if (!v || v === keyObj.key) return;
+    keyObj.key = v;
+    persistApiKeys();
+    return;
+  }
+  if (v) addNewKey(v);
 }
 
 function deleteApiKey(id) {
@@ -1583,14 +1710,55 @@ function addNewKey(key) {
 }
 
 function renderModelSelect() {
-  els.modelSelect.innerHTML = '';
+  const label = modelDisplay(state.selectedModel);
+  els.modelMenuLabel.textContent = label;
+  els.modelMenuList.innerHTML = '';
   for (const id of LLM_MODELS) {
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = modelDisplay(id);
-    els.modelSelect.appendChild(opt);
+    const item = document.createElement('li');
+    item.setAttribute('role', 'none');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'menu-item';
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', id === state.selectedModel ? 'true' : 'false');
+    btn.dataset.value = id;
+    if (id === state.selectedModel) {
+      const mark = svgIcon(ICONS.checkmark, { size: '16px' });
+      mark.classList.add('menu-check');
+      btn.appendChild(mark);
+    } else {
+      const spacer = document.createElement('span');
+      spacer.className = 'menu-check-spacer';
+      btn.appendChild(spacer);
+    }
+    const text = document.createElement('span');
+    text.textContent = modelDisplay(id);
+    btn.appendChild(text);
+    btn.addEventListener('click', () => {
+      state.selectedModel = id;
+      localStorage.setItem(LS.selectedModel, state.selectedModel);
+      closeModelMenu();
+      renderModelSelect();
+    });
+    item.appendChild(btn);
+    els.modelMenuList.appendChild(item);
   }
-  els.modelSelect.value = state.selectedModel;
+}
+
+function openModelMenu() {
+  els.modelMenuList.hidden = false;
+  els.modelMenuBtn.setAttribute('aria-expanded', 'true');
+}
+
+function closeModelMenu() {
+  if (!els.modelMenuList) return;
+  els.modelMenuList.hidden = true;
+  els.modelMenuBtn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleModelMenu() {
+  if (els.modelMenuList.hidden) openModelMenu();
+  else closeModelMenu();
 }
 
 /* --- search highlight overlay --- */
@@ -1627,6 +1795,7 @@ function syncHighlightScroll() {
 }
 
 function focusEditor() {
+  if (state.isPreviewMode) return;
   els.markdownEditor.focus();
 }
 
@@ -1639,14 +1808,17 @@ function openModal(id) {
   if (!modal) return;
   modal.hidden = false;
   openModals.add(id);
-  const input = modal.querySelector('input');
-  if (input) setTimeout(() => input.focus(), 30);
+  if (id !== 'settingsModal') {
+    const input = modal.querySelector('input');
+    if (input) setTimeout(() => input.focus(), 30);
+  }
 }
 function closeModal(id) {
   const modal = els[id];
   if (!modal) return;
   modal.hidden = true;
   openModals.delete(id);
+  if (id === 'settingsModal') closeModelMenu();
 }
 
 let confirmResolver = null;
@@ -1671,21 +1843,6 @@ function closeConfirm(result) {
 function openSettings() {
   renderModals();
   openModal('settingsModal');
-}
-
-/* ==========================================================================
-   Context menu
-   ========================================================================== */
-let ctxTarget = null;
-function showContextMenu(x, y, name) {
-  ctxTarget = name;
-  els.contextMenu.hidden = false;
-  els.contextMenu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
-  els.contextMenu.style.top = Math.min(y, window.innerHeight - 100) + 'px';
-}
-function hideContextMenu() {
-  els.contextMenu.hidden = true;
-  ctxTarget = null;
 }
 
 /* ==========================================================================
@@ -1812,16 +1969,23 @@ function bindEvents() {
   els.folderButton.addEventListener('click', pickDirectory);
 
   // List
-  els.newFromListBtn.addEventListener('click', createNewDocument);
   els.fabBtn.addEventListener('click', createNewDocument);
+  els.delListBtn.addEventListener('click', () => {
+    if (state.currentFileName) deleteDocument(state.currentFileName);
+  });
   els.mobileMenuBtn.addEventListener('click', openSidebar);
-  els.mobileMenuBtn2.addEventListener('click', openSidebar);
   els.sidebarOverlay.addEventListener('click', closeSidebar);
+  els.noteListBody.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // Editor toolbar
   els.newBtn.addEventListener('click', createNewDocument);
   els.saveBtn.addEventListener('click', handleManualSave);
   els.searchBtn.addEventListener('click', () => {
+    els.searchInput.value = state.searchText;
+    els.searchConfirmBtn.disabled = !els.searchInput.value.trim();
+    openModal('searchModal');
+  });
+  els.headerSearchBtn.addEventListener('click', () => {
     els.searchInput.value = state.searchText;
     els.searchConfirmBtn.disabled = !els.searchInput.value.trim();
     openModal('searchModal');
@@ -1864,6 +2028,13 @@ function bindEvents() {
     } catch (e) {
       showStatus('Copy failed', true);
     }
+  });
+  els.clearAnswerBtn.addEventListener('click', () => {
+    state.llmAnswer = '';
+    state.llmQuestion = '';
+    if (els.llmQuestion.value !== '') els.llmQuestion.value = '';
+    els.llmAnswerArea.hidden = true;
+    renderLLMPanel();
   });
   els.clearStatusBtn.addEventListener('click', clearStatus);
 
@@ -1910,51 +2081,18 @@ function bindEvents() {
       if (ok) resetWorkingDirectory();
     });
   });
-  els.testKeyBtn.addEventListener('click', testConnection);
-  els.addKeyBtn.addEventListener('click', () => {
-    els.newKeyInput.value = '';
-    els.newKeyAddBtn.disabled = true;
-    openModal('addKeyModal');
-  });
-  els.modelSelect.addEventListener('change', () => {
-    state.selectedModel = els.modelSelect.value;
-    localStorage.setItem(LS.selectedModel, state.selectedModel);
-  });
-  els.recordShortcutBtn.addEventListener('click', () => {
-    els.recordShortcutBtn.textContent = 'Recording…';
-    state.recordingShortcut = true;
-  });
-  els.resetShortcutBtn.addEventListener('click', () => {
-    state.previewShortcut = { alt: true, ctrl: false, meta: false, shift: false, code: 'Space', display: 'Option+Space' };
-    localStorage.setItem(LS.previewShortcut, JSON.stringify(state.previewShortcut));
-    els.shortcutDisplay.textContent = state.previewShortcut.display;
+  els.modelMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleModelMenu();
   });
 
-  // Add key modal
-  els.newKeyInput.addEventListener('input', () => {
-    els.newKeyAddBtn.disabled = !els.newKeyInput.value.trim();
+  document.addEventListener('pointerdown', (e) => {
+    if (swipeOpenEl && !swipeOpenEl.contains(e.target)) closeOpenSwipe();
+    if (els.modelMenuList && !els.modelMenuList.hidden) {
+      if (!els.modelArea.contains(e.target)) closeModelMenu();
+    }
   });
-  els.newKeyAddBtn.addEventListener('click', () => {
-    const key = els.newKeyInput.value.trim();
-    if (key) addNewKey(key);
-    closeModal('addKeyModal');
-  });
-  els.newKeyCancelBtn.addEventListener('click', () => closeModal('addKeyModal'));
-
-  // Context menu
-  els.ctxDelete.addEventListener('click', () => {
-    const target = ctxTarget;
-    hideContextMenu();
-    if (target) deleteDocument(target);
-  });
-  els.ctxDownload.addEventListener('click', () => {
-    const target = ctxTarget;
-    hideContextMenu();
-    if (target) downloadFile(target);
-  });
-  document.addEventListener('click', (e) => {
-    if (!els.contextMenu.hidden && !els.contextMenu.contains(e.target)) hideContextMenu();
-  });
+  els.noteListBody.addEventListener('scroll', closeOpenSwipe, { passive: true });
 
   // File inputs
   els.folderInput.addEventListener('change', onFolderInputChange);
@@ -1977,7 +2115,7 @@ function bindEvents() {
   });
 
   // Modal overlay backdrop click
-  ['searchModal', 'tagModal', 'settingsModal', 'addKeyModal'].forEach(id => {
+  ['searchModal', 'tagModal', 'settingsModal'].forEach(id => {
     els[id].addEventListener('click', (e) => {
       if (e.target === els[id]) closeModal(id);
     });
@@ -2025,38 +2163,7 @@ function downloadFile(name) {
 }
 
 /* --- keyboard shortcuts --- */
-function previewShortcutMatches(e) {
-  const s = state.previewShortcut;
-  return e.code === s.code &&
-    !!e.altKey === !!s.alt &&
-    !!e.ctrlKey === !!s.ctrl &&
-    !!e.metaKey === !!s.meta &&
-    !!e.shiftKey === !!s.shift;
-}
-
 function handleKeydown(e) {
-  // Recording a shortcut
-  if (state.recordingShortcut) {
-    e.preventDefault();
-    const mods = [];
-    if (e.altKey) mods.push('Option');
-    if (e.ctrlKey) mods.push('Control');
-    if (e.metaKey) mods.push('Command');
-    if (e.shiftKey) mods.push('Shift');
-    const keyLabel = e.code === 'Space' ? 'Space'
-      : e.key && e.key.length === 1 ? e.key.toUpperCase()
-      : e.code.replace(/^(Key|Digit)/, '');
-    state.previewShortcut = {
-      alt: e.altKey, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey,
-      code: e.code, display: [...mods, keyLabel].join('+'),
-    };
-    localStorage.setItem(LS.previewShortcut, JSON.stringify(state.previewShortcut));
-    els.recordShortcutBtn.textContent = 'Record';
-    els.shortcutDisplay.textContent = state.previewShortcut.display;
-    state.recordingShortcut = false;
-    return;
-  }
-
   const mod = e.metaKey || e.ctrlKey;
 
   if (mod && e.code === 'KeyN') {
@@ -2082,6 +2189,10 @@ function handleKeydown(e) {
 
   // Escape: close modal, else clear search
   if (e.key === 'Escape') {
+    if (els.modelMenuList && !els.modelMenuList.hidden) {
+      closeModelMenu();
+      return;
+    }
     if (openModals.size) {
       const id = [...openModals].pop();
       if (id === 'confirmModal') closeConfirm(false);
@@ -2090,14 +2201,6 @@ function handleKeydown(e) {
       clearSearch();
     }
     return;
-  }
-
-  // Preview shortcut (default Option+Space)
-  if (previewShortcutMatches(e)) {
-    const isTyping = ['TEXTAREA', 'INPUT'].includes(document.activeElement?.tagName);
-    if (isTyping && document.activeElement === els.llmQuestion) return;
-    e.preventDefault();
-    togglePreviewMode();
   }
 }
 
@@ -2128,7 +2231,7 @@ async function init() {
   // Never auto-show the settings window on launch. It only opens via the
   // sidebar "Settings" or toolbar "Set" buttons. Guard against any residual
   // modal state left over from a prior session or a stale cached build.
-  ['searchModal', 'tagModal', 'settingsModal', 'addKeyModal', 'confirmModal'].forEach(id => {
+  ['searchModal', 'tagModal', 'settingsModal', 'confirmModal'].forEach(id => {
     const m = els[id];
     if (m) { m.hidden = true; }
   });

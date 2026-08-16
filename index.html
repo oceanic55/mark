@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Markdownit</title>
-<link rel="stylesheet" href="styles.css?v=4">
+<link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
 <div id="app" class="app desktop">
@@ -51,25 +51,18 @@
   <section id="noteList" class="note-list" aria-label="Notes">
     <div class="note-list-header">
       <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="Menu" aria-label="Menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="note-list-title-wrap">
         <span class="note-list-title" id="listTitle">All Notes</span>
-        <span class="note-list-chevron">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </span>
       </span>
-      <button id="newFromListBtn" class="icon-btn" title="New note" aria-label="New note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <button id="headerSearchBtn" class="icon-btn header-search-btn" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
+      <button id="delListBtn" class="del-list-btn" hidden title="Delete selected note" aria-label="Delete selected note">Del</button>
     </div>
 
     <div class="note-list-body" id="noteListBody"></div>
-
-    <!-- FAB (mobile) -->
-    <button id="fabBtn" class="fab" title="New note" aria-label="New note">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-    </button>
   </section>
 
   <!-- Right: Editor area -->
@@ -77,20 +70,23 @@
     <!-- Toolbar -->
     <div class="toolbar">
       <button id="backBtn" class="icon-btn back-btn" title="Back to notes" aria-label="Back to notes">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
       </button>
-      <span class="file-label" id="fileLabel" title="">
-        <span id="unsavedDot" class="unsaved-dot" hidden></span>
-        <span class="file-name" id="fileNameText"></span>
-      </span>
       <div class="toolbar-actions">
-        <button id="newBtn" class="toolbar-btn">New</button>
-        <button id="saveBtn" class="toolbar-btn">Save</button>
-        <button id="searchBtn" class="toolbar-btn">Search</button>
-        <button id="tagBtn" class="toolbar-btn" disabled>Tag</button>
-        <button id="previewBtn" class="toolbar-btn" disabled>Preview</button>
-        <button id="mobileMenuBtn2" class="icon-btn mobile-menu-btn" title="Menu" aria-label="Menu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <button id="newBtn" class="toolbar-btn" title="New note" aria-label="New note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </button>
+        <button id="saveBtn" class="toolbar-btn" title="Save" aria-label="Save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+        <button id="searchBtn" class="toolbar-btn" title="Search" aria-label="Search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button id="tagBtn" class="toolbar-btn" title="Tag" aria-label="Tag" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        </button>
+        <button id="previewBtn" class="toolbar-btn" title="Preview" aria-label="Preview" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </div>
@@ -100,7 +96,7 @@
       <div class="editor-scroll" id="editorScroll">
         <pre id="highlightLayer" class="highlight-layer" aria-hidden="true"></pre>
         <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" autocapitalize="off"
-                  autocomplete="off" autocorrect="off" wrap="soft" placeholder="Start writing…"
+                  autocomplete="off" autocorrect="off" wrap="soft" placeholder=""
                   aria-label="Markdown editor"></textarea>
       </div>
       <div id="previewPane" class="preview-pane" role="region" aria-label="Markdown preview" hidden></div>
@@ -114,24 +110,27 @@
       <div id="statusBar" class="status-bar" aria-live="assertive" hidden>
         <span class="status-message" id="statusMessage"></span>
         <button id="clearStatusBtn" class="icon-btn status-clear" title="Dismiss" aria-label="Dismiss">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="llm-input-row">
-        <textarea id="llmQuestion" class="llm-question" rows="3" placeholder="Ask about your document…"
-                  enterkeyhint="send" aria-label="Ask about your document"></textarea>
-        <button id="copyAnswerBtn" class="icon-btn" title="Copy LLM answer" aria-label="Copy LLM answer" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        </button>
+        <textarea id="llmQuestion" class="llm-question" rows="3" placeholder=""
+                  enterkeyhint="send" aria-label="Question input"></textarea>
+        <div class="llm-btn-col">
+          <button id="clearAnswerBtn" class="icon-btn action-icon llm-clear-btn" title="Clear chat" aria-label="Clear chat" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </button>
+          <button id="copyAnswerBtn" class="icon-btn action-icon copy-icon" title="Copy LLM answer" aria-label="Copy LLM answer" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
       </div>
     </div>
   </main>
-</div>
 
-<!-- Context menu -->
-<div id="contextMenu" class="context-menu" hidden>
-  <button id="ctxDelete" class="context-item danger">Delete</button>
-  <button id="ctxDownload" class="context-item">Download .md</button>
+  <button id="fabBtn" class="fab" title="New note" aria-label="New note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
 </div>
 
 <!-- Search Sheet -->
@@ -181,30 +180,19 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="settings-header">API Keys</h3>
+      <h3 class="settings-header">API Key</h3>
+      <p class="modal-subtitle">Click the field to edit your API key</p>
       <div class="api-keys" id="apiKeyList"></div>
-      <div class="settings-row" style="margin-top:8px">
-        <button id="testKeyBtn" class="btn">Test</button>
-        <span id="testKeyResult" class="test-result" aria-live="polite"></span>
-        <div class="spacer"></div>
-        <button id="addKeyBtn" class="btn">API</button>
-      </div>
     </div>
 
     <div class="settings-section">
       <h3 class="settings-header">LLM Model</h3>
-      <div id="modelArea" class="settings-row">
-        <select id="modelSelect" class="modal-input" aria-label="Select model"></select>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="settings-header">Preview Shortcut</h3>
-      <div class="settings-row">
-        <span class="settings-value mono" id="shortcutDisplay">Option+Space</span>
-        <div class="spacer"></div>
-        <button id="recordShortcutBtn" class="btn">Record</button>
-        <button id="resetShortcutBtn" class="btn">Reset</button>
+      <div id="modelArea" class="menu-wrap">
+        <button type="button" id="modelMenuBtn" class="btn menu-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelMenuList" aria-label="Select model">
+          <span id="modelMenuLabel"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <ul id="modelMenuList" class="menu-list" role="listbox" hidden></ul>
       </div>
     </div>
 
@@ -226,23 +214,10 @@
   </div>
 </div>
 
-<!-- Add API Key -->
-<div id="addKeyModal" class="modal-overlay" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Add API Key">
-    <h2 class="modal-title">Add API Key</h2>
-    <p class="modal-subtitle">Paste your API key</p>
-    <input id="newKeyInput" type="password" class="modal-input" placeholder="Paste your API key" autocomplete="off">
-    <div class="modal-actions">
-      <button id="newKeyCancelBtn" class="btn">Cancel</button>
-      <button id="newKeyAddBtn" class="btn primary" disabled>Add</button>
-    </div>
-  </div>
-</div>
-
 <!-- Folder / file import (fallback modes) -->
 <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
 <input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" multiple hidden>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
