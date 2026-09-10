@@ -1,223 +1,761 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>Markdownit</title>
-<link rel="stylesheet" href="styles.css?v=23">
-</head>
-<body>
-<div id="app" class="app desktop">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Load CSV / JSON</title>
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #233c39;
+        background: #f7f8f5;
+        --green: #237463;
+        --muted: #74837d;
+        --line: #dfe6df;
+        --hl: #30FF1A;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 2rem 2rem 3rem; max-width: 960px; margin: 0 auto; }
+      .hidden { display: none !important; }
 
-  <!-- Left: Navigation sidebar -->
-  <aside id="sidebar" class="sidebar" aria-label="Navigation sidebar">
-    <div class="sidebar-scroll">
-      <!-- Collection selector header -->
-      <button id="collectionButton" class="collection-btn" title="Show all documents" aria-pressed="true">
-        <span class="collection-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
-        </span>
-        <span class="collection-name" id="collectionName">Documents</span>
-        <span class="collection-count" id="collectionCount"></span>
-      </button>
+      /* ── tab bar (invisible, Apple-style) ── */
+      .tabbar {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin: 0 0 1.75rem;
+      }
+      .tab {
+        border: 0; background: none; padding: 0;
+        font: inherit; font-size: 1rem; letter-spacing: 0.01em;
+        color: var(--muted); cursor: pointer;
+        transition: color 0.15s;
+      }
+      .tab:hover { color: var(--green); }
+      .tab.active { color: var(--green); }
+      .grow { flex: 1; }
 
-      <!-- Tag navigation -->
-      <nav class="tag-nav" id="tagNav" aria-label="Tags"></nav>
-    </div>
+      .load-tab {
+        border: 0; background: none; padding: 0;
+        font: inherit; font-size: 1rem; letter-spacing: 0.01em;
+        color: var(--muted); cursor: pointer;
+        transition: color 0.15s;
+        max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .load-tab:hover { color: var(--green); }
 
-    <div class="sidebar-footer">
-      <button id="settingsButton" class="sidebar-footer-btn" title="Settings">
-        <span class="footer-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </span>
-        <span>Settings</span>
-      </button>
-      <button id="folderButton" class="sidebar-footer-btn" title="Choose working directory">
-        <span class="footer-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        </span>
-        <span class="footer-folder-label" id="workingDirName">Markdownit</span>
-      </button>
-    </div>
-  </aside>
+      /* ── drop zone (removed — Load button in tab bar) ── */
+      input[type="file"] {
+        position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+      }
 
-  <div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
+      /* ── loaded state ── */
+      #loaded { display: none; }
 
-  <!-- Middle: Note list -->
-  <section id="noteList" class="note-list" aria-label="Notes">
-    <div class="note-list-header">
-      <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="Menu" aria-label="Menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <span class="note-list-title-wrap">
-        <span class="note-list-title" id="listTitle">All Notes</span>
-      </span>
-      <button id="headerSearchBtn" class="icon-btn header-search-btn" title="Search" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </button>
-      <button id="delListBtn" class="del-list-btn" hidden title="Delete selected note" aria-label="Delete selected note">Del</button>
-    </div>
+      /* ── search ── */
+      #searchBar { margin-bottom: 1.25rem; }
+      .search-inner { position: relative; }
+      #searchInput {
+        width: 100%; padding: 0.6rem 2.2rem 0.6rem 1rem; font-size: 0.9rem;
+        border: 1px solid var(--line); border-radius: 8px;
+        background: #fff; outline: none; font-family: inherit;
+      }
+      #searchInput:focus { border-color: var(--green); }
+      #searchInput::placeholder { color: var(--muted); }
+      #searchClear {
+        position: absolute; top: 50%; right: 0.35rem; transform: translateY(-50%);
+        border: 0; background: none; color: var(--muted); cursor: pointer;
+        font-size: 0.95rem; line-height: 1; padding: 0.25rem;
+      }
+      #searchClear:hover { color: var(--green); }
+      #searchInfo { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
 
-    <div class="note-list-body" id="noteListBody"></div>
-  </section>
+      /* ── summary cards ── */
+      #summary { display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+      .card {
+        background: #fff; border: 1px solid var(--line); border-radius: 8px;
+        padding: 0.75rem 1.1rem; min-width: 120px;
+      }
+      .card span   { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.2rem; }
+      .card strong { font-size: 1.15rem; }
 
-  <!-- Right: Editor area -->
-  <main id="editorPane" class="editor-pane" aria-label="Editor">
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <button id="backBtn" class="icon-btn back-btn" title="Back to notes" aria-label="Back to notes">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-      </button>
-      <div class="toolbar-actions">
-        <button id="newBtn" class="toolbar-btn" title="New note" aria-label="New note">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-        </button>
-        <button id="saveBtn" class="toolbar-btn" title="Save" aria-label="Save">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        </button>
-        <button id="searchBtn" class="toolbar-btn" title="Search" aria-label="Search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </button>
-        <button id="tagBtn" class="toolbar-btn" title="Tag" aria-label="Tag" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-        </button>
-        <button id="previewBtn" class="toolbar-btn" title="Preview" aria-label="Preview" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-      </div>
-    </div>
+      /* ── tables ── */
+      .tblwrap {
+        background: #fff; border: 1px solid var(--line); border-radius: 8px;
+        overflow: auto; margin-bottom: 1.25rem;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      thead th {
+        text-align: left; padding: 0.6rem 1rem; border-bottom: 1px solid var(--line);
+        font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
+        letter-spacing: 0.04em; white-space: nowrap; position: sticky; top: 0; background: #fff;
+      }
+      tbody td {
+        padding: 0.55rem 1rem; border-bottom: 1px solid var(--line);
+        white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+      }
+      tbody tr:last-child td { border-bottom: none; }
+      tbody tr:hover td { background: #f7f8f5; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
 
-    <!-- Editor / Preview content -->
-    <div class="editor-area">
-      <div class="editor-scroll" id="editorScroll">
-        <pre id="highlightLayer" class="highlight-layer" aria-hidden="true"></pre>
-        <textarea id="markdownEditor" class="markdown-editor" spellcheck="false" autocapitalize="off"
-                  autocomplete="off" autocorrect="off" wrap="soft" placeholder=""
-                  aria-label="Markdown editor"></textarea>
-      </div>
-      <div id="previewPane" class="preview-pane" role="region" aria-label="Markdown preview" hidden></div>
-    </div>
+      td.copyable { cursor: pointer; position: relative; user-select: none; }
+      td.copyable:active { background: #edf5f2; }
 
-    <!-- Bottom panel: LLM interaction -->
-    <div class="llm-panel">
-      <div id="llmAnswerArea" class="llm-answer" aria-live="polite" hidden>
-        <div id="llmAnswerText" class="llm-answer-text"></div>
-      </div>
-      <div id="statusBar" class="status-bar" aria-live="assertive" hidden>
-        <span class="status-message" id="statusMessage"></span>
-        <button id="clearStatusBtn" class="icon-btn status-clear" title="Dismiss" aria-label="Dismiss">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="llm-input-row">
-        <textarea id="llmQuestion" class="llm-question" rows="3" placeholder=""
-                  enterkeyhint="send" aria-label="Question input"></textarea>
-        <div class="llm-btn-col">
-          <button id="clearAnswerBtn" class="icon-btn action-icon llm-clear-btn" title="Clear chat" aria-label="Clear chat" hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-          </button>
-          <button id="copyAnswerBtn" class="icon-btn action-icon copy-icon" title="Copy LLM answer" aria-label="Copy LLM answer" hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
+      /* ── search result cards ── */
+      #searchResults {
+        display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;
+      }
+      #searchResults.hidden { display: none !important; }
+      .sr-card {
+        background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem 1.1rem;
+      }
+      .sr-card .sr-row {
+        display: flex; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.85rem;
+        border-bottom: 1px solid #f0f2f0;
+      }
+      .sr-card .sr-row:last-child { border-bottom: none; }
+      .sr-card .sr-key {
+        font-weight: 600; color: var(--green); min-width: 100px; flex-shrink: 0;
+      }
+      .sr-card .sr-val { word-break: break-word; cursor: pointer; }
+      .sr-card .sr-val:active { background: #edf5f2; }
+      mark { background: var(--hl); color: inherit; padding: 0 2px; border-radius: 2px; }
+
+      /* ── copy feedback ── */
+      #copyMsg {
+        font-size: 0.82rem; color: var(--green); min-height: 1.2em; margin-top: 0.5rem;
+        transition: opacity 0.3s;
+      }
+
+      /* ── editor ── */
+      .ed-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.9rem; }
+      .ed-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+      .ed-btn {
+        padding: 0.4rem 0.9rem; border-radius: 6px; font: inherit; font-size: 0.82rem;
+        background: #fff; color: var(--muted); border: 1px solid var(--line); cursor: pointer;
+      }
+      .ed-btn:hover { border-color: var(--green); color: var(--green); }
+      .ed-addrow { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+      .ed-addrow input {
+        flex: 1; min-width: 130px; padding: 0.5rem 0.75rem; font-size: 0.85rem;
+        border: 1px solid var(--line); border-radius: 6px; font-family: inherit; outline: none;
+      }
+      .ed-addrow input:focus { border-color: var(--green); }
+      #edAdd {
+        padding: 0.5rem 1rem; border-radius: 6px; font: inherit; font-size: 0.85rem;
+        background: var(--green); color: #fff; border: 0; cursor: pointer;
+      }
+      #edAdd:hover { background: #1a5a4c; }
+      .cell-input {
+        width: 100%; border: 0; background: transparent; font: inherit; font-size: 0.85rem;
+        padding: 0.2rem 0; outline: none;
+      }
+      .cell-input:focus { background: #f0f2f0; border-radius: 3px; }
+      .ed-del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 0.9rem; }
+      .ed-del:hover { color: #c0392b; }
+
+      .separator { border-top: 1px solid var(--line); margin: 1.5rem 0; }
+      #notice { font-size: 0.8rem; color: var(--muted); margin-top: 1rem; }
+      #edCopyMsg { font-size: 0.82rem; color: var(--green); min-height: 1.2em; margin-top: 0.5rem; }
+
+      /* ── compact cards on mobile only ── */
+      @media (max-width: 600px) {
+        :root { font-family: "Arial Narrow", "Avenir Next Condensed", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        body { max-width: none; padding: 1.1rem 0.85rem 2rem; }
+        .tabbar { gap: 1rem; margin-bottom: 1rem; }
+        .tab, .load-tab { font-size: 0.9rem; }
+        #searchBar { margin-bottom: 0.55rem; }
+        #searchInput { height: 2.25rem; border-radius: 8px; padding: 0.45rem 2rem 0.45rem 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }
+        #summary { display: none !important; }
+        .tblwrap { border: 0; border-radius: 0; overflow: visible; background: transparent; margin-bottom: 0.75rem; }
+        .tblwrap table { display: block; width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
+        .tblwrap thead { display: none; }
+        .tblwrap tbody { display: block; counter-reset: mobile-row; }
+        .tblwrap tbody tr { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr); gap: 0 0.5rem; margin: 0.45rem 0; padding: 0.7rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 1px 3px #17221f07; counter-increment: mobile-row; }
+        .tblwrap tbody tr::before { content: counter(mobile-row, decimal-leading-zero); position: absolute; top: 0.68rem; left: 0.7rem; display: grid; place-items: center; width: 1.55rem; height: 1.55rem; border-radius: 50%; color: #52615b; background: #eaf3ef; font: 400 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .tblwrap tbody td { min-width: 0; display: block; margin: 0; padding: 0; border: 0; color: #52615b; font: 400 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+        .tblwrap tbody td:nth-child(1) { grid-column: 1; grid-row: 1; min-height: 1.55rem; padding-left: 2.05rem; display: flex; align-items: center; }
+        .tblwrap tbody td:nth-child(2) { grid-column: 2; grid-row: 1; min-height: 1.55rem; display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .tblwrap tbody td:nth-child(3) { grid-column: 1 / -1; grid-row: 2; margin-top: 0.45rem; padding-left: 2.05rem; }
+        .tblwrap tbody td:nth-child(4) { grid-column: 1 / -1; grid-row: 3; margin-top: 0.45rem; padding-left: 2.05rem; }
+        .tblwrap tbody tr:hover td { background: transparent; }
+        .tblwrap td.num { text-align: left; }
+        #copyMsg { margin: 0.35rem 0 0; font: 400 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+        #notice { margin-top: 0.7rem; font-size: 0.7rem; }
+        #searchResults { gap: 0.45rem; }
+        .sr-card { border-radius: 10px; padding: 0.65rem 0.7rem; }
+        .sr-card .sr-row { gap: 0.4rem; padding: 0.18rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
+        .sr-card .sr-key { min-width: 3.3rem; font-size: 0.65rem; }
+        .sr-card .sr-val { overflow-wrap: anywhere; }
+        #page-editor .tblwrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+        #page-editor .tblwrap table { display: table; width: 100%; font-family: inherit; font-size: 0.85rem; }
+        #page-editor .tblwrap thead { display: table-header-group; }
+        #page-editor .tblwrap tbody { display: table-row-group; counter-reset: none; }
+        #page-editor .tblwrap tr { display: table-row; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; counter-increment: none; }
+        #page-editor .tblwrap tr::before { display: none; }
+        #page-editor .tblwrap th, #page-editor .tblwrap td { display: table-cell; padding: 0.55rem 1rem; border-bottom: 1px solid var(--line); font: inherit; }
+        #page-editor .tblwrap td:nth-child(n) { display: table-cell; padding-left: 1rem; margin: 0; min-height: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="tabbar" aria-label="Pages">
+      <button type="button" class="tab active" data-tab="loader" aria-selected="true">Show</button>
+      <button type="button" class="tab" data-tab="info" aria-selected="false">Edit</button>
+      <button id="loadBtn" class="load-tab" title="Load a CSV or JSON file">Load</button>
+      <span class="grow"></span>
+    </nav>
+
+    <input type="file" id="fileInput" accept=".csv,text/csv,.json,application/json" />
+
+    <section id="page-loader">
+      <div id="loaded">
+        <div id="searchBar" class="hidden">
+          <div class="search-inner">
+            <input type="text" id="searchInput" placeholder="Search..." />
+            <button id="searchClear" class="hidden" type="button" title="Clear search" aria-label="Clear search">&#x2715;</button>
+          </div>
+          <div id="searchInfo"></div>
         </div>
-      </div>
-    </div>
-  </main>
-
-  <button id="fabBtn" class="fab" title="New note" aria-label="New note">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  </button>
-</div>
-
-<!-- Search Sheet -->
-<div id="searchModal" class="modal-overlay" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Search Documents">
-    <h2 class="modal-title">Search Documents</h2>
-    <p class="modal-subtitle">Search all document contents</p>
-    <input id="searchInput" type="text" class="modal-input" placeholder="e.g. water" autocomplete="off">
-    <div class="modal-actions">
-      <button id="searchCancelBtn" class="btn">Cancel</button>
-      <button id="searchConfirmBtn" class="btn primary" disabled>Search</button>
-    </div>
-  </div>
-</div>
-
-<!-- Tag Editor Sheet -->
-<div id="tagModal" class="modal-overlay" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Edit Tags">
-    <h2 id="tagModalTitle" class="modal-title">Add Tags</h2>
-    <p class="modal-subtitle">Enter tags separated by commas</p>
-    <input id="tagInput" type="text" class="modal-input" placeholder="e.g. Build Commands, today, project" autocomplete="off">
-    <div class="tag-chips" id="tagChips"></div>
-    <div class="modal-actions">
-      <button id="tagCancelBtn" class="btn">Cancel</button>
-      <button id="tagSaveBtn" class="btn primary">Add</button>
-    </div>
-  </div>
-</div>
-
-<!-- Settings -->
-<div id="settingsModal" class="modal-overlay" hidden>
-  <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Settings">
-    <h2 class="modal-title">Settings</h2>
-
-    <div class="settings-section">
-      <h3 class="settings-header">Storage</h3>
-      <div class="settings-row">
-        <div class="settings-field">
-          <span class="settings-label">Working Directory</span>
-          <span class="settings-value mono" id="workingDirPath">Markdownit</span>
+        <div id="summary"></div>
+        <div id="tableWrap" class="tblwrap">
+          <table>
+            <thead><tr id="thead"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
         </div>
-        <button id="chooseDirBtn" class="btn">Choose&#8230;</button>
-        <button id="resetDirBtn" class="btn" title="Reset to default" aria-label="Reset to default">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-        </button>
+        <div id="searchResults" class="hidden"></div>
+        <div id="copyMsg"></div>
+        <p id="notice"></p>
       </div>
-    </div>
+    </section>
 
-    <div class="settings-section">
-      <h3 class="settings-header">API Key</h3>
-      <p class="modal-subtitle">Click the field to edit your API key</p>
-      <div class="api-keys" id="apiKeyList"></div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="settings-header">LLM Model</h3>
-      <div id="modelArea" class="menu-wrap">
-        <button type="button" id="modelMenuBtn" class="btn menu-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelMenuList" aria-label="Select model">
-          <span id="modelMenuLabel"></span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <ul id="modelMenuList" class="menu-list" role="listbox" hidden></ul>
+    <section id="page-editor" hidden>
+      <h2 class="ed-title">Use · Route · User · Key</h2>
+      <div class="ed-bar">
+        <button id="edLoadBtn" class="ed-btn" type="button">Load</button>
+        <button id="edExportBtn" class="ed-btn" type="button">Export</button>
+        <button id="edSaveBtn" class="ed-btn" type="button">Save</button>
+        <button id="edUnloadBtn" class="ed-btn" type="button">Unload</button>
       </div>
-    </div>
 
-    <div class="modal-actions">
-      <button id="settingsDoneBtn" class="btn primary">Done</button>
-    </div>
-  </div>
-</div>
+      <input type="file" id="edFileInput" accept=".csv,text/csv" />
 
-<!-- Confirm -->
-<div id="confirmModal" class="modal-overlay" hidden>
-  <div class="modal-card small" role="alertdialog" aria-modal="true" aria-label="Confirm" aria-describedby="confirmMessage">
-    <h2 class="modal-title">Confirm</h2>
-    <p class="modal-subtitle" id="confirmMessage"></p>
-    <div class="modal-actions">
-      <button id="confirmCancelBtn" class="btn">Cancel</button>
-      <button id="confirmOkBtn" class="btn danger">Delete</button>
-    </div>
-  </div>
-</div>
+      <div class="ed-addrow">
+        <input id="edUse" placeholder="Use" />
+        <input id="edRoute" placeholder="Route" />
+        <input id="edUser" placeholder="User" />
+        <input id="edKey" placeholder="Key" />
+        <button id="edAdd" type="button">Add entry</button>
+      </div>
 
-<!-- Folder / file import (fallback modes) -->
-<input type="file" id="folderInput" webkitdirectory directory multiple hidden>
-<input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" multiple hidden>
+      <div id="edWrap" class="tblwrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Use</th><th>Route</th><th>User</th><th>Key</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="edTbody"></tbody>
+        </table>
+      </div>
+      <div id="edCopyMsg"></div>
+    </section>
 
-<script src="app.js?v=17"></script>
-</body>
+    <script>
+      // ── tabs ──
+      function selectTab(name) {
+        document.querySelectorAll(".tab").forEach(b => {
+          const on = b.dataset.tab === name;
+          b.classList.toggle("active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        document.getElementById("page-loader").hidden = name !== "loader";
+        document.getElementById("page-editor").hidden = name !== "info";
+        try { localStorage.setItem("activeTab", name); } catch (e) {}
+        updateLoadLabel();
+      }
+      document.querySelectorAll(".tab").forEach(b =>
+        b.addEventListener("click", () => selectTab(b.dataset.tab)));
+
+      const fileInput = document.getElementById("fileInput");
+      const loaded    = document.getElementById("loaded");
+      const copyMsg   = document.getElementById("copyMsg");
+      const loadBtn   = document.getElementById("loadBtn");
+
+      let currentData = null;
+      let loadTabFile = null;
+      let edLoadedName = null;
+
+      function updateLoadLabel() {
+        const onEditor = !document.getElementById("page-editor").hidden;
+        const name = onEditor ? edLoadedName : loadTabFile;
+        loadBtn.textContent = onEditor ? (name || "") : (name || "Load");
+        loadBtn.title = onEditor
+          ? (name ? "Loaded: " + name + " (use Unload to remove)" : "No file loaded on this tab")
+          : (name ? "Loaded: " + name + " — click to unload and load a new file"
+                  : "Load a CSV or JSON file");
+      }
+
+      loadBtn.addEventListener("click", () => {
+        if (!document.getElementById("page-editor").hidden) return;
+        if (loadTabFile) unloadLoadTab();
+        fileInput.click();
+      });
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files[0];
+        fileInput.value = "";
+        if (file) loadFile(file);
+      });
+
+      function unloadLoadTab() {
+        loadTabFile = null;
+        currentData = null;
+        loaded.style.display = "none";
+        document.getElementById("searchInput").value = "";
+        document.getElementById("searchClear").classList.add("hidden");
+        try { localStorage.removeItem("loaderFile"); } catch (e) {}
+        updateLoadLabel();
+      }
+
+      document.getElementById("searchInput").addEventListener("input", onSearch);
+
+      function persistFile(name, text) {
+        try { localStorage.setItem("loaderFile", JSON.stringify({ name, text })); } catch (e) {}
+      }
+
+      function loadFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            if (file.name.toLowerCase().endsWith(".json")) renderJSON(file, text);
+            else renderCSV(file, text);
+            persistFile(file.name, text);
+          }
+          catch (err) {
+            loaded.style.display = "none";
+            alert("Render error: " + err.message + "\n\n" + err.stack);
+          }
+        };
+        reader.onerror = () => alert("Could not read file.");
+        reader.readAsText(file);
+      }
+
+      // ── CSV parser (quoted fields, CRLF + LF) ──
+      function parseCSV(text) {
+        const rows = [];
+        let row = [], field = "", inQuote = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === '"') {
+            if (inQuote && text[i + 1] === '"') { field += '"'; i++; }
+            else { inQuote = !inQuote; }
+          } else if (ch === "," && !inQuote) { row.push(field); field = ""; }
+          else if ((ch === "\n" || ch === "\r") && !inQuote) {
+            if (ch === "\r" && text[i + 1] === "\n") i++;
+            row.push(field); rows.push(row); row = []; field = "";
+          } else { field += ch; }
+        }
+        if (field !== "" || row.length) { row.push(field); rows.push(row); }
+        return rows;
+      }
+
+      function isNumeric(str) {
+        return typeof str === "string" && str.trim() !== "" && !isNaN(Number(str));
+      }
+
+      function fmt(str) {
+        if (!isNumeric(str)) return str;
+        return new Intl.NumberFormat("en", { maximumFractionDigits: 3 }).format(Number(str));
+      }
+
+      function escapeHTML(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function highlight(text, query) {
+        if (!query) return escapeHTML(text);
+        const safe = escapeHTML(text);
+        const q = escapeHTML(query);
+        const re = new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi");
+        return safe.replace(re, "<mark>$1</mark>");
+      }
+
+      let copyTimer = null;
+      function copyToClipboard(val) {
+        const ta = document.createElement("textarea");
+        ta.value = val;
+        ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      function showCopyMsg(val) {
+        const ok = copyToClipboard(val);
+        if (ok) {
+          const preview = val.length > 40 ? val.slice(0, 40) + "\u2026" : val;
+          copyMsg.textContent = "Copied: " + preview;
+        } else {
+          copyMsg.textContent = "Copy failed";
+        }
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => { copyMsg.textContent = ""; }, 3000);
+      }
+
+      const clearBtn = document.getElementById("searchClear");
+      clearBtn.addEventListener("click", () => {
+        document.getElementById("searchInput").value = "";
+        clearBtn.classList.add("hidden");
+        showBaseView();
+      });
+      document.getElementById("searchInput").addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          document.getElementById("searchInput").value = "";
+          clearBtn.classList.add("hidden");
+          showBaseView();
+        }
+      });
+
+      function onSearch() {
+        const q = document.getElementById("searchInput").value.trim().toLowerCase();
+        clearBtn.classList.toggle("hidden", q === "");
+        if (!q) { showBaseView(); document.getElementById("searchInfo").textContent = ""; return; }
+
+        const results = document.getElementById("searchResults");
+        const info = document.getElementById("searchInfo");
+        document.getElementById("tableWrap").style.display = "none";
+        document.getElementById("summary").style.display = "none";
+        results.classList.remove("hidden");
+        results.innerHTML = "";
+        copyMsg.textContent = "";
+
+        let count = 0;
+        const keys = currentData.headers;
+        const rows = currentData.rows;
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const match = row.some(cell => cell.toLowerCase().includes(q));
+          if (!match) continue;
+          count++;
+
+          const card = document.createElement("div");
+          card.className = "sr-card";
+          keys.forEach((k, ci) => {
+            const val = row[ci] ?? "";
+            const d = document.createElement("div");
+            d.className = "sr-row";
+            const keyEl = document.createElement("span");
+            keyEl.className = "sr-key";
+            keyEl.textContent = k;
+            const valEl = document.createElement("span");
+            valEl.className = "sr-val";
+            valEl.innerHTML = highlight(val, q);
+            valEl.addEventListener("click", () => showCopyMsg(val));
+            d.append(keyEl, valEl);
+            card.append(d);
+          });
+          results.append(card);
+        }
+
+        info.textContent = count + " match" + (count !== 1 ? "es" : "") + " found";
+      }
+
+      function showBaseView() {
+        const results = document.getElementById("searchResults");
+        results.classList.add("hidden");
+        results.innerHTML = "";
+        document.getElementById("searchInfo").textContent = "";
+        document.getElementById("tableWrap").style.display = "";
+        document.getElementById("summary").style.display = "";
+      }
+
+      function buildTable(headers, rows) {
+        const thead = document.getElementById("thead");
+        const tbody = document.getElementById("tbody");
+        thead.innerHTML = ""; tbody.innerHTML = "";
+        const numericCol = headers.map((_, ci) => rows.every(r => isNumeric(r[ci])));
+        headers.forEach(h => {
+          const th = document.createElement("th"); th.textContent = h; thead.append(th);
+        });
+        rows.forEach(row => {
+          const tr = document.createElement("tr");
+          headers.forEach((_, ci) => {
+            const td = document.createElement("td");
+            td.className = "mobile-col-" + ci + (numericCol[ci] ? " num" : "");
+            const val = row[ci] ?? "";
+            td.textContent = fmt(val);
+            td.addEventListener("click", () => showCopyMsg(val));
+            tr.append(td);
+          });
+          tbody.append(tr);
+        });
+      }
+
+      function finishLoad(file, rows, headers) {
+        currentData = { headers, rows };
+        loadTabFile = file.name;
+        updateLoadLabel();
+        document.getElementById("tableWrap").style.display = "";
+        document.getElementById("summary").style.display = "";
+        document.getElementById("searchBar").classList.remove("hidden");
+        document.getElementById("searchInput").value = "";
+        document.getElementById("searchResults").classList.add("hidden");
+        document.getElementById("searchInfo").textContent = "";
+        copyMsg.textContent = "";
+        loaded.style.display = "block";
+      }
+
+      function renderCSV(file, text) {
+        const rows = parseCSV(text);
+        if (rows.length < 2) { alert("File appears empty or has only a header."); return; }
+
+        const headers = rows[0];
+        const data = rows.slice(1).filter(r => r.some(c => c.trim() !== ""));
+        if (!data.length) { alert("No data rows found after the header."); return; }
+
+        const summary = document.getElementById("summary");
+        summary.innerHTML = "";
+        const addCard = (label, value) => {
+          const card   = document.createElement("div");   card.className = "card";
+          const span   = document.createElement("span");   span.textContent   = label;
+          const strong = document.createElement("strong"); strong.textContent = value;
+          card.append(span, strong); summary.append(card);
+        };
+        addCard("Entries", data.length);
+        headers.forEach((h, ci) => {
+          const vals = data.map(r => r[ci]);
+          if (vals.every(isNumeric)) {
+            const total = vals.reduce((a, v) => a + Number(v), 0);
+            addCard(h + " total", new Intl.NumberFormat("en", { maximumFractionDigits: 3 }).format(total));
+          }
+        });
+
+        buildTable(headers, data);
+        finishLoad(file, data, headers);
+      }
+
+      function renderJSON(file, text) {
+        let data;
+        try { data = JSON.parse(text); } catch { alert("Invalid JSON file."); return; }
+
+        let headers = [], rows = [];
+
+        if (Array.isArray(data) && data.length && typeof data[0] === "object" && data[0] !== null) {
+          headers = [...new Set(data.flatMap(obj => Object.keys(obj)))];
+          rows = data.map(obj => headers.map(h => {
+            const v = obj[h];
+            return v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+          }));
+        } else if (Array.isArray(data)) {
+          headers = ["Index", "Value"];
+          rows = data.map((v, i) => [String(i), typeof v === "object" ? JSON.stringify(v) : String(v)]);
+        } else if (typeof data === "object" && data !== null) {
+          headers = ["Key", "Value"];
+          rows = Object.entries(data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]);
+        } else {
+          alert("JSON structure not supported for table view."); return;
+        }
+
+        if (!rows.length) { alert("No data entries found."); return; }
+
+        const summary = document.getElementById("summary");
+        summary.innerHTML = "";
+        const addCard = (label, value) => {
+          const card   = document.createElement("div");   card.className = "card";
+          const span   = document.createElement("span");   span.textContent   = label;
+          const strong = document.createElement("strong"); strong.textContent = value;
+          card.append(span, strong); summary.append(card);
+        };
+        addCard("Entries", rows.length);
+
+        buildTable(headers, rows);
+        finishLoad(file, rows, headers);
+      }
+
+      // ── editor ──
+      const ED_HEADERS = ["Use", "Route", "User", "Key"];
+      const edTbody = document.getElementById("edTbody");
+      const edCopyMsg = document.getElementById("edCopyMsg");
+      let edRows = [];
+      let edFileHandle = null;
+      let edCopyTimer = null;
+
+      const edAddBtn = document.getElementById("edAdd");
+      const edUse  = document.getElementById("edUse");
+      const edRoute = document.getElementById("edRoute");
+      const edUser = document.getElementById("edUser");
+      const edKey  = document.getElementById("edKey");
+
+      function edShowCopy(msg) {
+        edCopyMsg.textContent = msg;
+        clearTimeout(edCopyTimer);
+        edCopyTimer = setTimeout(() => { edCopyMsg.textContent = ""; }, 3000);
+      }
+
+      function syncEditorToShow() {
+        if (!edLoadedName) return;
+        persistFile(edLoadedName, edBuildCSV());
+      }
+
+      function edSave() {
+        try {
+          localStorage.setItem("editorRows", JSON.stringify(edRows));
+          localStorage.setItem("editorName", edLoadedName || "");
+        } catch (e) {}
+        syncEditorToShow();
+      }
+
+      function edRender() {
+        edTbody.innerHTML = "";
+        edRows.forEach((row, i) => {
+          const tr = document.createElement("tr");
+          ED_HEADERS.forEach((_, j) => {
+            const td = document.createElement("td");
+            const inp = document.createElement("input");
+            inp.className = "cell-input";
+            inp.value = row[j] ?? "";
+            inp.addEventListener("input", () => { edRows[i][j] = inp.value; edSave(); });
+            inp.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const v = row[j] ?? "";
+              if (copyToClipboard(v)) {
+                edShowCopy("Copied: " + (v.length > 40 ? v.slice(0, 40) + "\u2026" : v));
+              }
+            });
+            td.append(inp);
+            tr.append(td);
+          });
+          const td = document.createElement("td");
+          const del = document.createElement("button");
+          del.className = "ed-del"; del.textContent = "\u2715"; del.title = "Delete row";
+          del.addEventListener("click", () => { edRows.splice(i, 1); edSave(); edRender(); updateLoadLabel(); });
+          td.append(del);
+          tr.append(td);
+          tr.addEventListener("click", (e) => {
+            if (e.target.classList.contains("ed-del")) return;
+            const preview = ED_HEADERS.map((h, j) => h + ": " + (row[j] ?? "")).join(" · ");
+            if (copyToClipboard(row.join("\t"))) {
+              edShowCopy("Copied: " + (preview.length > 60 ? preview.slice(0, 60) + "\u2026" : preview));
+            }
+          });
+          edTbody.append(tr);
+        });
+      }
+
+      edAddBtn.addEventListener("click", () => {
+        edRows.push([edUse.value, edRoute.value, edUser.value, edKey.value]);
+        edSave(); edRender(); updateLoadLabel();
+        [edUse, edRoute, edUser, edKey].forEach(i => { i.value = ""; });
+        edUse.focus();
+      });
+
+      document.getElementById("edLoadBtn").addEventListener("click", () =>
+        document.getElementById("edFileInput").click());
+
+      document.getElementById("edFileInput").addEventListener("change", () => {
+        const file = document.getElementById("edFileInput").files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const parsed = parseCSV(e.target.result);
+          const head = (parsed[0] || []).map(h => h.trim().toLowerCase());
+          const known = ED_HEADERS.map(h => h.toLowerCase());
+          const hasHeader = head.some(h => known.includes(h));
+          const dataRows = hasHeader ? parsed.slice(1) : parsed;
+          edRows = dataRows.map(r => ED_HEADERS.map((_, i) => r[i] === undefined ? "" : String(r[i])));
+          edLoadedName = file.name;
+          edFileHandle = null;
+          edSave(); edRender(); updateLoadLabel();
+        };
+        reader.onerror = () => alert("Could not read file.");
+        reader.readAsText(file);
+      });
+
+      function edBuildCSV() {
+        const esc = s => /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        const lines = [ED_HEADERS.join(","), ...edRows.map(r => r.map(esc).join(","))];
+        return lines.join("\r\n");
+      }
+
+      function downloadCSV(csv, name) {
+        const blob = new Blob([csv], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = name || "entries.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      document.getElementById("edExportBtn").addEventListener("click", () => {
+        downloadCSV(edBuildCSV(), edLoadedName || "entries.csv");
+        edShowCopy("Exported " + (edLoadedName || "entries.csv"));
+      });
+
+      document.getElementById("edSaveBtn").addEventListener("click", async () => {
+        const csv = edBuildCSV();
+        if (window.showSaveFilePicker) {
+          try {
+            if (!edFileHandle) {
+              edFileHandle = await window.showSaveFilePicker({
+                suggestedName: edLoadedName || "entries.csv",
+                types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }],
+              });
+            }
+            const writable = await edFileHandle.createWritable();
+            await writable.write(new Blob([csv], { type: "text/csv" }));
+            await writable.close();
+            edLoadedName = edFileHandle.name || edLoadedName;
+            edSave(); updateLoadLabel();
+            edShowCopy("Saved " + edFileHandle.name);
+            return;
+          } catch (err) {
+            if (err && err.name === "AbortError") return;
+          }
+        }
+        downloadCSV(csv, edLoadedName || "entries.csv");
+        edShowCopy("Saved as download (direct save not supported in this browser)");
+      });
+
+      document.getElementById("edUnloadBtn").addEventListener("click", () => {
+        edRows = [];
+        edLoadedName = null;
+        edFileHandle = null;
+        try {
+          localStorage.removeItem("editorRows");
+          localStorage.removeItem("editorName");
+        } catch (e) {}
+        edRender();
+        updateLoadLabel();
+        edShowCopy("Unloaded");
+      });
+
+      // ── startup: restore persisted state ──
+      try {
+        const savedTab = localStorage.getItem("activeTab");
+        if (savedTab) selectTab(savedTab);
+      } catch (e) {}
+
+      try {
+        const rows = JSON.parse(localStorage.getItem("editorRows") || "null");
+        if (Array.isArray(rows)) { edRows = rows; edRender(); }
+        edLoadedName = localStorage.getItem("editorName") || null;
+        updateLoadLabel();
+      } catch (e) {}
+
+      try {
+        const pf = JSON.parse(localStorage.getItem("loaderFile") || "null");
+        if (pf && typeof pf.name === "string" && typeof pf.text === "string") {
+          const f = { name: pf.name, size: pf.text.length };
+          if (pf.name.toLowerCase().endsWith(".json")) renderJSON(f, pf.text);
+          else renderCSV(f, pf.text);
+        }
+      } catch (e) {}
+    </script>
+  </body>
 </html>
